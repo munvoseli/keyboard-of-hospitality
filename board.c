@@ -170,7 +170,7 @@ int event_handler (SDL_Event * eventp, struct Oscset * idatap)
 }
 
 
-Sint16 instrument_hotel (int j, struct Oscset * idatap)
+static inline Sint16 instrument_hotel (int j, struct Oscset * idatap)
 {
 	// first half: saw from 0 to 1/2 (-1 to 0), slope 2
 	// second half: saw from 1/4 to 1 (-1/2 to 1), slope 3
@@ -180,7 +180,7 @@ Sint16 instrument_hotel (int j, struct Oscset * idatap)
 		return AMPLITUDE * idatap->aOsc [j].volume * (2 * idatap->aOsc [j].nSampleProgress / idatap->aOsc [j].cSampleWavelength - (double) 1);
 }
 
-Sint16 instrument_triangle (int j, struct Oscset * idatap)
+static inline Sint16 instrument_triangle (int j, struct Oscset * idatap)
 {
 	if (2 * idatap->aOsc [j].nSampleProgress < idatap->aOsc [j].cSampleWavelength)
 		return AMPLITUDE * (2 * idatap->aOsc [j].nSampleProgress / idatap->aOsc [j].cSampleWavelength - (double) .5);
@@ -230,7 +230,7 @@ void audio_callback (void * datap, Uint8 * raw_buffer, int cbyte)
 		// more samples / call -> more volume decrease / call
 		// more samples / sec -> less volume decrease / sample
 		// decrese x / call * call / sec * sec / SAMPLE_RATE samples
-		time = idatap->lastPlayedNote == idatap->aOsc [j].note ? idatap->focusedDecrease : idatap->unfocusedDecrease;
+		time = idatap->focusedDecrease;//idatap->lastPlayedNote == idatap->aOsc [j].note ? idatap->focusedDecrease : idatap->unfocusedDecrease;
 		idatap->aOsc [j].volume = idatap->aOsc [j].targetVolume;
 		idatap->aOsc [j].targetVolume = idatap->aOsc [j].volume - time * (double) length / SAMPLE_RATE;
 		if (idatap->aOsc [j].volume <= 0)

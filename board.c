@@ -8,6 +8,7 @@
 #define AMPLITUDE 14000
 #define MAX_OSCILLATORS 10
 #define C_STACK 10
+#define C_NBUFF 10
 
 // struct for a single oscillator	
 struct Osc
@@ -26,12 +27,33 @@ struct Oscset
 	double focusedDecrease; // how fast the active note decreases in volume
 	double unfocusedDecrease;
 	unsigned int cOscillator; // count of active oscillators
-	int currentNote;
+	int currentNote; // this was for keeping track of the focused note.  don't use it
 	int lastPlayedNote; // because silent notes for moving
 	unsigned int nSelectedStack;
 	int oscStack [C_STACK]; // not a stack? scrolling, not push/pop
+	unsigned int nBufferedNotes;
+	char bufferingNote;
+	int oscBuffer [C_NBUFF];
 	struct Osc aOsc [MAX_OSCILLATORS]; // array of oscillators
 };
+
+void init_oscset (struct Oscset * idatap)
+{
+	int i;
+	idatap->focusedDecrease = 3;
+	idatap->cOscillator = 2;
+	idatap->currentNote = 0;
+	idatap->lastPlayedNote = 0;
+	
+	idatap->nSelectedStack = 0;
+	for (i = 0; i < C_STACK; ++i)
+		idatap->oscStack [i] = 0;
+	
+	idatap->nBufferedNotes = 0;
+	idatap->bufferingNote = 0;
+	for (i = 0; i < MAX_OSCILLATORS; ++i)
+		idatap->aOsc [i].samplesSinceHit = 0;
+}
 
 void setnote (struct Osc * oscp, int note)
 {
@@ -60,6 +82,14 @@ void addnotetoset (struct Oscset * idatap)
 	int i;
 	char makeNew = 1;
 	idatap->lastPlayedNote = idatap->currentNote;
+	if (idatap->bufferingNote)
+	{
+		idatap->oscBuffer [idatap->nBufferedNotes] = idatap->lastPlayedNote;
+		addnotetostack (idatap);
+		idatap->bufferingNote = 0;
+		++idatap->nBufferedNotes;
+		return;
+	}
 	for (i = 0; i < idatap->cOscillator; ++i)
 	{
 		if (idatap->aOsc [i].note == idatap->currentNote)
@@ -81,6 +111,12 @@ void addnotetoset (struct Oscset * idatap)
 		++idatap->cOscillator;
 	}
 	addnotetostack (idatap);
+	if (idatap->nBufferedNotes > 0)
+	{
+		--idatap->nBufferedNotes;
+		idatap->currentNote = idatap->oscBuffer [idatap->nBufferedNotes];
+		addnotetoset (idatap);
+	}
 }
 
 void playfromstack (struct Oscset * idatap, unsigned int n_stack)
@@ -144,26 +180,8 @@ int event_handler (SDL_Event * eventp, struct Oscset * idatap)
 		case SDLK_9: playfromstack (idatap, 9); break;
 		case SDLK_w: (idatap->focusedDecrease -= (double) .5) < 0 ? idatap->focusedDecrease = 0:0; break;
 		case SDLK_e: idatap->focusedDecrease += .5; break;
-		case SDLK_i: (idatap->unfocusedDecrease -= (double) .5) < 0 ? idatap->unfocusedDecrease = 0:0; break;
-		case SDLK_o: idatap->unfocusedDecrease += .5; break;
+		case SDLK_u: idatap->bufferingNote = 1;
 		}
-		/* if (eventp->key.keysym.sym == SDLK_f) idatap->currentNote -= 1;
-		else if (eventp->key.keysym.sym == SDLK_d) idatap->currentNote -= 2;
-		else if (eventp->key.keysym.sym == SDLK_s) idatap->currentNote -= 3;
-		else if (eventp->key.keysym.sym == SDLK_a) idatap->currentNote -= 4;
-		else if (eventp->key.keysym.sym == SDLK_v) idatap->currentNote -= 5;
-		else if (eventp->key.keysym.sym == SDLK_c) idatap->currentNote -= 6;
-		else if (eventp->key.keysym.sym == SDLK_x) idatap->currentNote -= 7;
-		else if (eventp->key.keysym.sym == SDLK_z) idatap->currentNote -= 12;
-		else if (eventp->key.keysym.sym == SDLK_j) idatap->currentNote += 1;
-		else if (eventp->key.keysym.sym == SDLK_k) idatap->currentNote += 2;
-		else if (eventp->key.keysym.sym == SDLK_l) idatap->currentNote += 3;
-		else if (eventp->key.keysym.sym == SDLK_SEMICOLON) idatap->currentNote += 4;
-		else if (eventp->key.keysym.sym == SDLK_m        ) idatap->currentNote += 5;
-		else if (eventp->key.keysym.sym == SDLK_COMMA    ) idatap->currentNote += 6;
-		else if (eventp->key.keysym.sym == SDLK_PERIOD   ) idatap->currentNote += 7;
-		else if (eventp->key.keysym.sym == SDLK_SLASH    ) idatap->currentNote += 12;
-		else if (eventp->key.keysym.sym == SDLK_g) idatap->currentNote = 0;*/
 		return 1;
 	}
 	return 1;
@@ -257,25 +275,7 @@ int main ()
 		SDL_WINDOWPOS_UNDEFINED,
 		SDL_WINDOWPOS_UNDEFINED,
 		100, 100, 0);
-	data.cOscillator = 2;
-	data.focusedDecrease = 3;
-	data.unfocusedDecrease = 3;
-	data.nSelectedStack = 0;
-	for (i = 0; i < C_STACK; ++i)
-		data.oscStack [i] = 0;
-	for (i = 0; i < MAX_OSCILLATORS; ++i)
-		data.aOsc [i].samplesSinceHit = 0;
-	// it used to be that it was struct Osc * [MAX_OSCILLATORS] instead of struct Osc [MAX_OSCILLATORS] in the oscset struct
-	//for (i = 0; i < MAX_OSCILLATORS; ++i)
-	//	data.aOsc [i] = (struct Osc) malloc (sizeof (struct Osc));
-	data.currentNote = 0;
-	data.lastPlayedNote = 0;
-	/*data.aOsc [0].volume = 1;
-	data.aOsc [0].nSampleProgress = 0;
-	setnote (&data.aOsc [0], 1);
-	data.aOsc [1].volume = 1;
-	data.aOsc [1].nSampleProgress = 0;
-	setnote (&data.aOsc [1], 13);*/
+	init_oscset (&data);
 	if (SDL_Init (SDL_INIT_AUDIO) != 0)
 		printf ("SDL init failed: %s", SDL_GetError ());
 	want.freq = SAMPLE_RATE;

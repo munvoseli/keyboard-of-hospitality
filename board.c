@@ -24,6 +24,7 @@ struct Osc
 // struct for data for all the oscillators, and maybe some other data too
 struct Oscset
 {
+	unsigned int instrument;
 	double focusedDecrease; // how fast the active note decreases in volume
 	double unfocusedDecrease;
 	unsigned int cOscillator; // count of active oscillators
@@ -40,6 +41,7 @@ struct Oscset
 void init_oscset (struct Oscset * idatap)
 {
 	int i;
+	idatap->instrument = 0;
 	idatap->focusedDecrease = 3;
 	idatap->cOscillator = 2;
 	idatap->currentNote = 0;
@@ -181,6 +183,7 @@ int event_handler (SDL_Event * eventp, struct Oscset * idatap)
 		case SDLK_w: (idatap->focusedDecrease -= (double) .5) < 0 ? idatap->focusedDecrease = 0:0; break;
 		case SDLK_e: idatap->focusedDecrease += .5; break;
 		case SDLK_u: idatap->bufferingNote = 1;
+		case SDLK_t: idatap->instrument ^= 1;
 		}
 		return 1;
 	}
@@ -224,6 +227,7 @@ void audio_callback (void * datap, Uint8 * raw_buffer, int cbyte)
 	length = cbyte / 2;
 	buffer = (Sint16*) raw_buffer;
 	idatap = (struct Oscset*) datap;
+	Sint16 (*p_instrument) (int, struct Oscset*) = idatap->instrument == 0 ? &instrument_hotel : &instrument_triangle;
 	for (i = 0; i < length; ++i)
 	{
 		buffer [i] = 0;
@@ -235,7 +239,7 @@ void audio_callback (void * datap, Uint8 * raw_buffer, int cbyte)
 			
 
 			// third instrument: triangle wave
-			diff = instrument_triangle (j, idatap) * lerp (idatap->aOsc [j].volume, idatap->aOsc [j].targetVolume, (double) i / (double) length);
+			diff = (*p_instrument) (j, idatap) * lerp (idatap->aOsc [j].volume, idatap->aOsc [j].targetVolume, (double) i / (double) length);
 			
 			diff *= (sin ((double) idatap->aOsc [j].samplesSinceHit / (double) 1000) + (double) 5) / (double) 5;
 			buffer [i] += diff;
